@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escape del paradigma 4+1</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #0d0d1a;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 16px;
+            color: #f39c12;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px #000;
+            text-align: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            background: #1a002c;
+            border: 4px solid #4a0e4e;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background: #11001c;
+        }
+
+        /* Barra de Vidas */
+        #ui-bar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 5;
+            font-size: 12px;
+            text-shadow: 2px 2px #000;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+
+        .heart {
+            color: #e74c3c;
+            font-size: 16px;
+        }
+
+        /* Modales de Preguntas */
+        .modal {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 10;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal h2 {
+            font-size: 12px;
+            color: #f1c40f;
+            margin-bottom: 15px;
+            line-height: 1.5;
+            max-width: 90%;
+        }
+
+        .options-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 95%;
+            max-width: 650px;
+        }
+
+        .btn-option {
+            background: #2c3e50;
+            color: #ecf0f1;
+            border: 2px solid #bdc3c7;
+            padding: 8px 12px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 9px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            line-height: 1.4;
+        }
+
+        .btn-option:hover {
+            background: #34495e;
+            border-color: #f1c40f;
+            color: #f1c40f;
+        }
+
+        /* Modal Fin de Juego */
+        .game-over-title {
+            color: #e74c3c !important;
+            font-size: 20px !important;
+            margin-bottom: 20px;
+        }
+
+        .win-title {
+            color: #2ecc71 !important;
+            font-size: 20px !important;
+            margin-bottom: 20px;
+        }
+
+        .btn-restart {
+            margin-top: 20px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .btn-restart:hover {
+            background: #2ecc71;
+        }
+
+        #controls-info {
+            margin-top: 12px;
+            font-size: 10px;
+            color: #8e44ad;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Escape del paradigma 4+1</h1>
+
+    <div id="game-container">
+        <!-- Barra de Vida -->
+        <div id="ui-bar">
+            <span>VIDAS:</span>
+            <span id="hearts-container">
+                <span class="heart">♥</span>
+                <span class="heart">♥</span>
+                <span class="heart">♥</span>
+            </span>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+        <!-- Modal Pregunta Enemigos (3 opciones) -->
+        <div id="quiz-modal" class="modal">
+            <h2 id="quiz-question">¿Pregunta del Enemigo?</h2>
+            <div id="quiz-options" class="options-container"></div>
+        </div>
+
+        <!-- Modal Pregunta Puerta Final (5 opciones) -->
+        <div id="final-modal" class="modal">
+            <h2 style="color: #e67e22; margin-bottom: 10px;">¡PREGUNTA FINAL DE LA PUERTA!</h2>
+            <p id="final-question" style="font-size: 10px; margin-bottom: 15px; color: #3498db; line-height: 1.4;"></p>
+            <div id="final-options" class="options-container"></div>
+        </div>
+
+        <!-- Modal Fin del Juego -->
+        <div id="end-modal" class="modal">
+            <h2 id="end-title" class="game-over-title">GAME OVER</h2>
+            <p id="end-message" style="font-size: 10px; line-height: 1.5; margin-bottom: 15px;"></p>
+            <button class="btn-restart" onclick="restartGame()">JUGAR DE NUEVO</button>
+        </div>
+    </div>
+
+    <div id="controls-info">
+        Moverse: [←] [→] | Saltar: [BARRA ESPACIADORA]
+    </div>
+
+    <script>
+        // --- PREGUNTAS EXTRAÍDAS DIRECTAMENTE DEL DOCUMENTO ADJUNTO ---
+        const PREGUNTAS_ENEMIGOS = [
+            {
+                pregunta: "¿Cuál es el objetivo principal del principio de separación de incumbencias en el Modelo 4+1?",
+                opciones: [
+                    "Aislar preocupaciones lógicas, estructurales, operativas y físicas para evitar acoplamiento conceptual.",
+                    "Dividir los costos de infraestructura del sistema entre los desarrolladores y clientes.",
+                    "Asegurar que solo exista un diagrama unificado en la documentación del proyecto."
+                ],
+                correcta: 0
+            },
+            {
+                pregunta: "¿Qué audiencia y objetivo principal corresponden a la Vista Lógica?",
+                opciones: [
+                    "Dirigida a ingenieros DevOps para configurar Kubernetes y firewalls.",
+                    "Dirigida a diseñadores, analistas y arquitectos para diseñar con alta cohesión y bajo acoplamiento.",
+                    "Dirigida a usuarios finales para enseñar la navegación en la interfaz gráfica."
+                ],
+                correcta: 1
+            },
+            {
+                pregunta: "¿Qué aspectos del sistema aborda principalmente la Vista de Procesos?",
+                opciones: [
+                    "Gestión de código fuente, paquetes, librerías y repositorios Git.",
+                    "Topología de hardware, routers, switches y zonas DMZ de red.",
+                    "Aspectos dinámicos en tiempo de ejecución: hilos, procesos, rendimiento y tolerancia a fallos."
+                ],
+                correcta: 2
+            },
+            {
+                pregunta: "¿Qué representa el símbolo de Rombo Relleno en un Diagrama de Clases (Vista Lógica)?",
+                opciones: [
+                    "Relación de Herencia o Generalización entre clases.",
+                    "Composición: relación fuerte donde el ciclo de vida de la parte depende del todo.",
+                    "Agregación: relación débil de 'tiene-un' con ciclo de vida independiente."
+                ],
+                correcta: 1
+            }
+        ];
+
+        const PREGUNTA_FINAL = {
+            pregunta: "A partir del documento de Modelo 4+1, analice la relación entre las vistas. ¿Cuál de las siguientes afirmaciones describe con precisión la Vista Física (o de Despliegue) y la Vista Escenarios (+1)?",
+            opciones: [
+                "La Vista Física modela clases y objetos, mientras que la Vista Escenarios mapea componentes en subredes privadas.",
+                "La Vista Física ilustra líneas de vida y mensajes síncronos; la Vista Escenarios describe paquetes y librerías JAR/DLL.",
+                "La Vista Física mapea artefactos sobre nodos de cómputo (físicos/virtuales) y la Vista Escenarios valida que los diseños de las otras 4 vistas funcionen en conjunto.",
+                "La Vista Física solo incluye diagramas de casos de uso, mientras que la Vista Escenarios define las tablas de la base de datos.",
+                "La Vista Física se enfoca en el código fuente de los desarrolladores y la Vista Escenarios gestiona los hilos de comunicación IPC."
+            ],
+            correcta: 2
+        };
+
+        // --- CONFIGURACIÓN DEL JUEGO Y CANVAS ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let gamePaused = false;
+        let lives = 3;
+        let currentEnemyIndex = -1;
+
+        const keys = { right: false, left: false };
+        let cameraX = 0;
+        const LEVEL_WIDTH = 2200;
+
+        // Jugador
+        const player = {
+            x: 50,
+            y: 300,
+            width: 24,
+            height: 32,
+            vx: 0,
+            vy: 0,
+            speed: 3.5,
+            jumpStrength: -11,
+            gravity: 0.5,
+            grounded: false,
+            invulnerable: false,
+            invulnerableTimer: 0
+        };
+
+        // Plataformas del castillo
+        const platforms = [
+            { x: 0, y: 350, width: LEVEL_WIDTH, height: 50 }, // Suelo
+            { x: 250, y: 270, width: 120, height: 20 },
+            { x: 480, y: 210, width: 140, height: 20 },
+            { x: 750, y: 260, width: 100, height: 20 },
+            { x: 980, y: 200, width: 150, height: 20 },
+            { x: 1250, y: 270, width: 120, height: 20 },
+            { x: 1500, y: 210, width: 140, height: 20 },
+            { x: 1780, y: 260, width: 120, height: 20 }
+        ];
+
+        // Enemigos
+        let enemies = [
+            { x: 500, y: 180, width: 24, height: 24, vx: 1.2, minX: 480, maxX: 600, questionIndex: 0, alive: true },
+            { x: 1000, y: 170, width: 24, height: 24, vx: 1.5, minX: 980, maxX: 1100, questionIndex: 1, alive: true },
+            { x: 1300, y: 326, width: 24, height: 24, vx: -1.2, minX: 1200, maxX: 1400, questionIndex: 2, alive: true },
+            { x: 1800, y: 230, width: 24, height: 24, vx: 1.2, minX: 1780, maxX: 1880, questionIndex: 3, alive: true }
+        ];
+
+        // Puerta de Salida
+        const exitDoor = { x: 2080, y: 270, width: 44, height: 80 };
+
+        // Controles Teclado
+        window.addEventListener('keydown', (e) => {
+            if (gamePaused) return;
+            if (e.key === 'ArrowRight' || e.key === 'Right') keys.right = true;
+            if (e.key === 'ArrowLeft' || e.key === 'Left') keys.left = true;
+            if (e.key === ' ' || e.key === 'Spacebar') {
+                if (player.grounded) {
+                    player.vy = player.jumpStrength;
+                    player.grounded = false;
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Right') keys.right = false;
+            if (e.key === 'ArrowLeft' || e.key === 'Left') keys.left = false;
+        });
+
+        // Bucle de Actualización
+        function update() {
+            if (gamePaused) return;
+
+            if (keys.right) player.vx = player.speed;
+            else if (keys.left) player.vx = -player.speed;
+            else player.vx = 0;
+
+            player.vy += player.gravity;
+            player.x += player.vx;
+            player.y += player.vy;
+
+            if (player.invulnerable) {
+                player.invulnerableTimer--;
+                if (player.invulnerableTimer <= 0) player.invulnerable = false;
+            }
+
+            // Colisión con Plataformas
+            player.grounded = false;
+            for (let p of platforms) {
+                if (player.x < p.x + p.width &&
+                    player.x + player.width > p.x &&
+                    player.y < p.y + p.height &&
+                    player.y + player.height > p.y) {
+                    
+                    if (player.vy > 0 && player.y + player.height - player.vy <= p.y + 12) {
+                        player.y = p.y - player.height;
+                        player.vy = 0;
+                        player.grounded = true;
+                    }
+                }
+            }
+
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > LEVEL_WIDTH) player.x = LEVEL_WIDTH - player.width;
+
+            // Enemigos
+            enemies.forEach((enemy, index) => {
+                if (!enemy.alive) return;
+
+                enemy.x += enemy.vx;
+                if (enemy.x <= enemy.minX || enemy.x + enemy.width >= enemy.maxX) {
+                    enemy.vx *= -1;
+                }
+
+                // Colisión Jugador - Enemigo
+                if (player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y) {
+
+                    // Salto sobre enemigo
+                    if (player.vy > 0 && (player.y + player.height - player.vy) <= enemy.y + 12) {
+                        player.vy = player.jumpStrength * 0.6;
+                        triggerEnemyQuiz(index);
+                    } else if (!player.invulnerable) {
+                        takeDamage();
+                    }
+                }
+            });
+
+            // Colisión con la Puerta Final
+            if (player.x < exitDoor.x + exitDoor.width &&
+                player.x + player.width > exitDoor.x &&
+                player.y < exitDoor.y + exitDoor.height &&
+                player.y + player.height > exitDoor.y) {
+                triggerFinalQuiz();
+            }
+
+            // Scroll Cámara
+            cameraX = player.x - canvas.width / 2 + player.width / 2;
+            if (cameraX < 0) cameraX = 0;
+            if (cameraX > LEVEL_WIDTH - canvas.width) cameraX = LEVEL_WIDTH - canvas.width;
+        }
+
+        // Renderizado Pixel Art
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(-cameraX, 0);
+
+            // Fondo Castillo
+            ctx.fillStyle = "#160a29";
+            ctx.fillRect(cameraX, 0, canvas.width, canvas.height);
+
+            // Plataformas
+            platforms.forEach(p => {
+                ctx.fillStyle = "#4a4e69";
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+                ctx.strokeStyle = "#22223b";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(p.x, p.y, p.width, p.height);
+            });
+
+            // Puerta Final
+            ctx.fillStyle = "#8d5524";
+            ctx.fillRect(exitDoor.x, exitDoor.y, exitDoor.width, exitDoor.height);
+            ctx.fillStyle = "#f1c40f";
+            ctx.beginPath();
+            ctx.arc(exitDoor.x + 32, exitDoor.y + 45, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#2c1d11";
+            ctx.strokeRect(exitDoor.x, exitDoor.y, exitDoor.width, exitDoor.height);
+
+            // Enemigos (Fantasmas)
+            enemies.forEach(enemy => {
+                if (!enemy.alive) return;
+                ctx.fillStyle = "#8e44ad";
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(enemy.x + 4, enemy.y + 4, 4, 4);
+                ctx.fillRect(enemy.x + 14, enemy.y + 4, 4, 4);
+            });
+
+            // Jugador
+            if (!player.invulnerable || Math.floor(Date.now() / 100) % 2 === 0) {
+                ctx.fillStyle = "#e74c3c"; // Gorro Mario
+                ctx.fillRect(player.x, player.y, player.width, 8);
+                ctx.fillStyle = "#f1c40f"; // Cara
+                ctx.fillRect(player.x + 4, player.y + 8, 16, 8);
+                ctx.fillStyle = "#2980b9"; // Traje
+                ctx.fillRect(player.x, player.y + 16, player.width, 16);
+            }
+
+            ctx.restore();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- SISTEMA DE PREGUNTAS Y VIDAS ---
+        function takeDamage() {
+            lives--;
+            updateHeartsUI();
+            player.invulnerable = true;
+            player.invulnerableTimer = 60;
+            player.vy = -6;
+
+            if (lives <= 0) {
+                showEndGame(false, "¡Te has quedado sin corazones! Los espectros del castillo te atrapado.");
+            }
+        }
+
+        function updateHeartsUI() {
+            const container = document.getElementById('hearts-container');
+            container.innerHTML = '';
+            for (let i = 0; i < lives; i++) {
+                container.innerHTML += '<span class="heart">♥</span> ';
+            }
+        }
+
+        function triggerEnemyQuiz(enemyIndex) {
+            gamePaused = true;
+            currentEnemyIndex = enemyIndex;
+            const qData = PREGUNTAS_ENEMIGOS[enemies[enemyIndex].questionIndex];
+
+            document.getElementById('quiz-question').innerText = qData.pregunta;
+            const optionsContainer = document.getElementById('quiz-options');
+            optionsContainer.innerHTML = '';
+
+            qData.opciones.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-option';
+                btn.innerText = `${String.fromCharCode(65 + idx)}) ${opt}`;
+                btn.onclick = () => answerEnemyQuiz(idx === qData.correcta);
+                optionsContainer.appendChild(btn);
+            });
+
+            document.getElementById('quiz-modal').classList.add('active');
+        }
+
+        function answerEnemyQuiz(isCorrect) {
+            document.getElementById('quiz-modal').classList.remove('active');
+            gamePaused = false;
+
+            if (isCorrect) {
+                enemies[currentEnemyIndex].alive = false;
+            } else {
+                takeDamage();
+            }
+        }
+
+        function triggerFinalQuiz() {
+            gamePaused = true;
+            document.getElementById('final-question').innerText = PREGUNTA_FINAL.pregunta;
+            const optionsContainer = document.getElementById('final-options');
+            optionsContainer.innerHTML = '';
+
+            PREGUNTA_FINAL.opciones.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-option';
+                btn.innerText = `${String.fromCharCode(65 + idx)}) ${opt}`;
+                btn.onclick = () => answerFinalQuiz(idx === PREGUNTA_FINAL.correcta);
+                optionsContainer.appendChild(btn);
+            });
+
+            document.getElementById('final-modal').classList.add('active');
+        }
+
+        function answerFinalQuiz(isCorrect) {
+            document.getElementById('final-modal').classList.remove('active');
+            if (isCorrect) {
+                showEndGame(true, "¡Excelente! Has respondido correctamente y logrado escapar del Paradigma 4+1.");
+            } else {
+                showEndGame(false, "Respuesta incorrecta en la puerta. Te quedaste atrapado en el castillo...");
+            }
+        }
+
+        function showEndGame(win, message) {
+            gamePaused = true;
+            const modal = document.getElementById('end-modal');
+            const title = document.getElementById('end-title');
+            const msg = document.getElementById('end-message');
+
+            if (win) {
+                title.innerText = "¡VICTORIA!";
+                title.className = "win-title";
+            } else {
+                title.innerText = "GAME OVER";
+                title.className = "game-over-title";
+            }
+
+            msg.innerText = message;
+            modal.classList.add('active');
+        }
+
+        function restartGame() {
+            lives = 3;
+            updateHeartsUI();
+            player.x = 50;
+            player.y = 300;
+            player.vx = 0;
+            player.vy = 0;
+            player.invulnerable = false;
+            
+            enemies.forEach(e => e.alive = true);
+
+            document.getElementById('end-modal').classList.remove('active');
+            gamePaused = false;
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
